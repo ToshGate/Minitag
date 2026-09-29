@@ -127,7 +127,7 @@ O MiniTag foi desenvolvido com recurso a ferramentas de inteligência artificial
 - **Código e documentação** — escritos com a assistência do Claude (Anthropic).
 - **Ícone** — gerado com o Gemini (Google) e adaptado para ícone Android.
 
-A app foi testada num dispositivo Android real, mas pode conter erros que passaram despercebidos. **Faça cópia de segurança dos seus ficheiros de música antes de editar muitos de uma vez.** Relatos de problemas são bem-vindos em [Issues](../../issues).
+A app foi testada num dispositivo Android real, mas pode conter erros que passaram despercebidos. **Faça cópia de segurança dos seus ficheiros de música antes de editar muitos de uma vez.**
 
 ## Bibliotecas
 
