@@ -1,4 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Conversão para MP3 em serviço de primeiro plano (continua ao sair da app) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
+    <!-- Notificação de progresso (Android 13+ pede autorização) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Manter o CPU acordado com o ecrã desligado durante a conversão -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <application
         android:theme="@style/Theme.MiniTag"
         android:label="@string/app_name"
@@ -12,5 +22,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".ConversionService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync|mediaProcessing" />
     </application>
 </manifest>

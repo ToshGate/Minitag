@@ -58,6 +58,11 @@ data class TagData(val values: Map<TagField, String>, val hasCover: Boolean)
  * Lógica de tags pura JVM (sem Android), trabalha sobre um java.io.File.
  * O TagRepository trata de copiar de/para o URI do SAF.
  */
+/**
+ * As funções públicas são @Synchronized: o jaudiotagger tem configuração global partilhada,
+ * e a conversão para MP3 corre em vários threads. As operações de tags são rápidas;
+ * a cópia dos ficheiros (a parte lenta) fica fora do bloqueio, no TagRepository.
+ */
 object TagEngine {
     init {
         // Sem isto o jaudiotagger tenta usar javax.imageio / java.awt, que não existem no Android.
@@ -88,6 +93,7 @@ object TagEngine {
         AudioFile(file, GenericAudioHeader(), tag).also { it.ext = ext.lowercase() }
     }
 
+    @Synchronized
     fun read(file: File, ext: String): TagData {
         val af = open(file, ext)
         val tag = af.tag
@@ -117,6 +123,7 @@ object TagEngine {
         return TagData(values, hasCover)
     }
 
+    @Synchronized
     fun readCover(file: File, ext: String): ByteArray? {
         val tag = open(file, ext).tag ?: return null
         return runCatching { artworkTag(tag)?.firstArtwork?.binaryData }.getOrNull()
@@ -126,6 +133,7 @@ object TagEngine {
      * Aplica as alterações e grava no ficheiro.
      * Devolve avisos (campos que o formato não suporta); lança excepção em erros reais.
      */
+    @Synchronized
     fun write(file: File, ext: String, changes: TagChanges): List<String> {
         validate(changes)
         val warnings = mutableListOf<String>()

@@ -20,8 +20,8 @@ android {
         applicationId = "com.minitag.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.0"
+        versionCode = 12
+        versionName = "1.2"
     }
 
     signingConfigs {
@@ -52,7 +52,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 
-// Nome do APK: MiniTag-v1.0-release.apk
+// Nome do APK: MiniTag-v<versionName>-release.apk (ex.: MiniTag-v1.2-release.apk)
 base.archivesName.set("MiniTag-v${android.defaultConfig.versionName}")
 
 dependencies {
@@ -61,4 +61,6 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("net.jthink:jaudiotagger:3.0.1")
+    // LAME (codificador MP3) em Java puro — sem NDK nem bibliotecas nativas.
+    implementation("de.sciss:jump3r:1.0.5")
 }

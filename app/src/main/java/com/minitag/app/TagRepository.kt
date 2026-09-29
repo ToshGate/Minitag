@@ -76,7 +76,7 @@ class TagRepository(private val context: Context) {
      * Pede ao MediaStore para reler o ficheiro; caso contrário os leitores de música
      * continuam a mostrar as tags antigas e parece que "não gravou".
      */
-    private fun scan(uri: Uri) {
+    fun scan(uri: Uri) {
         val docId = runCatching { DocumentsContract.getDocumentId(uri) }.getOrNull() ?: return
         val volume = docId.substringBefore(':', "")
         val rel = docId.substringAfter(':', "")
