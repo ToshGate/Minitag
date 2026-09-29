@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:paddingStart="24dp" android:paddingEnd="24dp" android:paddingTop="8dp">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="8dp">
+            <ImageView android:id="@+id/cover" android:layout_width="96dp" android:layout_height="96dp"
+                android:scaleType="centerCrop" android:background="?attr/colorSurfaceVariant"
+                android:contentDescription="Capa do álbum" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:layout_marginStart="12dp" android:orientation="vertical">
+                <TextView android:id="@+id/coverStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="A carregar capa…" />
+                <!-- Botões empilhados: lado a lado não cabem ao lado da capa em ecrãs estreitos -->
+                <Button android:id="@+id/coverPick" style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:minHeight="40dp" android:maxLines="1" android:text="Escolher imagem" />
+                <Button android:id="@+id/coverRemove" style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:minHeight="40dp" android:maxLines="1" android:text="Remover capa" />
+                <Button android:id="@+id/coverUndo" style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:minHeight="40dp" android:maxLines="1" android:ellipsize="end"
+                    android:text="Anular" android:visibility="gone" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Os campos são gerados em código a partir de TagField -->
+        <LinearLayout android:id="@+id/fields" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
+    </LinearLayout>
+</ScrollView>
