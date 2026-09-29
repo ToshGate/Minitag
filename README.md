@@ -56,13 +56,11 @@ Título · Artista · Álbum · Artista do álbum · Compositor · Ano · Faixa 
 
 ## Capturas de ecrã
 
-<!-- Adicionar imagens em docs/screenshots/ e descomentar:
 <p align="center">
-  <img src="docs/screenshots/lista.png" width="260">
-  <img src="docs/screenshots/editar.png" width="260">
-  <img src="docs/screenshots/lote.png" width="260">
+  <img src="docs/screenshots/lista.png" width="260" alt="Lista de músicas">
+  <img src="docs/screenshots/editar.png" width="260" alt="Editar uma música">
+  <img src="docs/screenshots/lote.png" width="260" alt="Edição em lote">
 </p>
--->
 
 ## Instalação
 
