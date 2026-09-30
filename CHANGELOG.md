@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.3] — 2026-09-30
+
+### Alterado
+- Linhas da lista reorganizadas: título, artista, álbum · faixa · ano, e depois **formato · bitrate · kHz · duração · capa**. O caminho do ficheiro, que repetia o nome da música, deixou de aparecer.
+- Botões "Abrir pasta" e "Editar seleccionados" com a mesma altura e alinhados.
+- MP3 com bitrate variável mostram "VBR" a seguir ao bitrate.
+- Quando o jaudiotagger não consegue ler a informação técnica (ex.: M4A com AC-3), é usada a do Android.
+
+## [1.2] — 2026-09-29
+
+### Adicionado
+- A conversão para MP3 corre num **serviço em primeiro plano**: continua ao sair da app ou com o ecrã desligado, sem ser terminada pelo Android.
+- Notificação com progresso e botão *Cancelar*; aviso de conclusão se a app não estiver aberta.
+- Ao voltar à app durante a conversão, o progresso é retomado no ecrã.
+
+### Corrigido
+- Falha ao iniciar a conversão no Android 15 (`InvalidForegroundServiceTypeException`): o `ServiceCompat` do androidx.core descartava o tipo de serviço "mediaProcessing".
+
+### Alterado
+- O bloqueio das operações de tags passou para o `TagEngine`; a cópia dos ficheiros deixou de ser feita um de cada vez durante a conversão.
+- Removida a opção de manter o ecrã ligado durante a conversão (deixou de ser necessária).
+
+## [1.1] — 2026-09-29
+
+### Adicionado
+- **Conversão para MP3** dos ficheiros seleccionados:
+  - qualidade à escolha: 320, 256, 192, 128 kbps ou VBR (LAME `-V2`); a última escolha é memorizada;
+  - gravação numa subpasta `MP3/` junto de cada original, que nunca é alterado;
+  - nomes repetidos geram `nome (1).mp3`, `nome (2).mp3`…;
+  - tags e capa copiadas para o MP3;
+  - aviso quando o original já é um formato com perdas (MP3, AAC, Vorbis…);
+  - ficheiros não convertíveis (WMA, DSF, codecs sem descodificador) são indicados e ignorados;
+  - vários ficheiros convertidos em simultâneo (um por núcleo livre, até 4);
+  - barra de progresso e botão *Cancelar*.
+- Dependência jump3r 1.0.5 (LAME em Java, LGPL-2.1+).
+
 ## [1.0] — 2026-09-29
 
 Primeira versão estável.

@@ -1,0 +1,23 @@
+# Gradle / Android Studio
+.gradle/
+.kotlin/
+build/
+app/build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.iml
+.idea/
+.DS_Store
+local.properties
+
+# Assinatura — nunca publicar
+keystore.properties
+*.jks
+*.keystore
+
+# Artefactos
+*.apk
+*.aab
+*.ap_
+*.dex

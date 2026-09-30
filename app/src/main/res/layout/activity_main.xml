@@ -3,13 +3,32 @@
     android:id="@+id/root"
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:padding="12dp">
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-        <Button android:id="@+id/openFolder" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Abrir pasta" />
-        <Button android:id="@+id/editSelected" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="8dp" android:text="Editar seleccionados" />
+    <!-- baselineAligned=false + match_parent: os dois botões ficam sempre com a altura do mais alto
+         (o "Editar seleccionados" pode ocupar duas linhas) e alinhados pelo topo -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
+        android:baselineAligned="false">
+        <Button android:id="@+id/openFolder" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="Abrir pasta" />
+        <Button android:id="@+id/editSelected" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="8dp" android:text="Editar seleccionados" />
     </LinearLayout>
+    <Button android:id="@+id/convertSelected" style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp"
+        android:text="Converter seleccionados para MP3" />
     <TextView android:id="@+id/folderLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingTop="8dp" android:paddingBottom="4dp" android:maxLines="2" android:ellipsize="middle" android:text="Nenhuma pasta seleccionada" />
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:alpha="0.7" android:text="Toque para editar um ficheiro · toque longo ou caixa para seleccionar vários" />
     <CheckBox android:id="@+id/selectAll" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Seleccionar todos" />
+    <!-- Conversão em curso: tem barra própria para não se misturar com a leitura da pasta -->
+    <LinearLayout android:id="@+id/statusRow" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:visibility="gone">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:id="@+id/statusLabel" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:maxLines="2" android:ellipsize="middle" android:textSize="13sp" />
+            <Button android:id="@+id/cancelButton" style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Cancelar" />
+        </LinearLayout>
+        <com.google.android.material.progressindicator.LinearProgressIndicator android:id="@+id/convProgress"
+            android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="4dp" />
+    </LinearLayout>
     <com.google.android.material.progressindicator.LinearProgressIndicator android:id="@+id/progress" android:layout_width="match_parent" android:layout_height="wrap_content" android:visibility="gone" />
     <androidx.recyclerview.widget.RecyclerView android:id="@+id/list" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:clipToPadding="false" android:paddingTop="4dp" />
 </LinearLayout>

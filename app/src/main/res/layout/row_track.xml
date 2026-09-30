@@ -8,6 +8,7 @@
         <TextView android:id="@+id/title" android:layout_width="match_parent" android:layout_height="wrap_content" android:textStyle="bold" android:textSize="16sp" android:maxLines="1" android:ellipsize="end" />
         <TextView android:id="@+id/artist" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" />
         <TextView android:id="@+id/album" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" />
-        <TextView android:id="@+id/file" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:maxLines="2" android:ellipsize="middle" />
+        <!-- Formato · bitrate · kHz · duração · capa (ou o erro de leitura) -->
+        <TextView android:id="@+id/file" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:maxLines="2" android:ellipsize="end" />
     </LinearLayout>
 </LinearLayout>

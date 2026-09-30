@@ -5,3 +5,5 @@
 -dontwarn java.awt.**
 -dontwarn javax.imageio.**
 -dontwarn javax.swing.**
+# jump3r: só a classe LameEncoder (não usada) depende de javax.sound.
+-dontwarn javax.sound.**

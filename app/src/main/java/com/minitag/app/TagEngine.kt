@@ -52,11 +52,24 @@ data class TagChanges(
     val isEmpty get() = fields.isEmpty() && cover === CoverChange.Keep
 }
 
-data class TagData(val values: Map<TagField, String>, val hasCover: Boolean)
+/** Informação técnica do áudio. Qualquer campo pode faltar (ex.: M4A lido pelo recurso sem cabeçalho). */
+data class AudioInfo(
+    val bitrateKbps: Int?,
+    val vbr: Boolean,
+    val sampleRateHz: Int?,
+    val durationSec: Int?,
+)
+
+data class TagData(val values: Map<TagField, String>, val hasCover: Boolean, val info: AudioInfo? = null)
 
 /**
  * Lógica de tags pura JVM (sem Android), trabalha sobre um java.io.File.
  * O TagRepository trata de copiar de/para o URI do SAF.
+ */
+/**
+ * As funções públicas são @Synchronized: o jaudiotagger tem configuração global partilhada,
+ * e a conversão para MP3 corre em vários threads. As operações de tags são rápidas;
+ * a cópia dos ficheiros (a parte lenta) fica fora do bloqueio, no TagRepository.
  */
 object TagEngine {
     init {
@@ -88,6 +101,7 @@ object TagEngine {
         AudioFile(file, GenericAudioHeader(), tag).also { it.ext = ext.lowercase() }
     }
 
+    @Synchronized
     fun read(file: File, ext: String): TagData {
         val af = open(file, ext)
         val tag = af.tag
@@ -114,9 +128,24 @@ object TagEngine {
             TagField.COMMENT to get(FieldKey.COMMENT),
         )
         val hasCover = tag?.let { runCatching { artworkTag(it)?.artworkList?.isNotEmpty() }.getOrNull() } ?: false
-        return TagData(values, hasCover)
+        return TagData(values, hasCover, audioInfo(af))
     }
 
+    /**
+     * Cada leitura vai protegida: no jaudiotagger 3.0.1 os getters do cabeçalho convertem
+     * Integer → int e rebentam com NullPointerException quando o valor não foi lido.
+     */
+    private fun audioInfo(af: AudioFile): AudioInfo? {
+        val h = af.audioHeader ?: return null
+        val kbps = runCatching { h.bitRateAsNumber.toInt() }.getOrNull()?.takeIf { it > 0 }
+        val vbr = runCatching { h.isVariableBitRate }.getOrDefault(false)
+        val rate = runCatching { h.sampleRateAsNumber }.getOrNull()?.takeIf { it > 0 }
+        val secs = runCatching { h.trackLength }.getOrNull()?.takeIf { it > 0 }
+        if (kbps == null && rate == null && secs == null) return null
+        return AudioInfo(kbps, vbr, rate, secs)
+    }
+
+    @Synchronized
     fun readCover(file: File, ext: String): ByteArray? {
         val tag = open(file, ext).tag ?: return null
         return runCatching { artworkTag(tag)?.firstArtwork?.binaryData }.getOrNull()
@@ -126,6 +155,7 @@ object TagEngine {
      * Aplica as alterações e grava no ficheiro.
      * Devolve avisos (campos que o formato não suporta); lança excepção em erros reais.
      */
+    @Synchronized
     fun write(file: File, ext: String, changes: TagChanges): List<String> {
         validate(changes)
         val warnings = mutableListOf<String>()

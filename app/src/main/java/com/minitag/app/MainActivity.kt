@@ -9,9 +9,16 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import android.util.Log
 import android.view.View
+import android.Manifest
+import android.app.NotificationManager
+import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.CompoundButton
+import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -23,9 +30,10 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import androidx.core.content.ContextCompat
 import java.util.concurrent.Executors
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), ConversionManager.Listener {
     private val executor = Executors.newSingleThreadExecutor()
     private val tracks = mutableListOf<Track>()
     private lateinit var repo: TagRepository
@@ -35,7 +43,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var openButton: Button
     private lateinit var selectAll: CheckBox
     private lateinit var progress: LinearProgressIndicator
-    private var busy = false
+    private lateinit var convertButton: Button
+    private lateinit var statusRow: View
+    private lateinit var statusLabel: TextView
+    private lateinit var convProgress: LinearProgressIndicator
+    private lateinit var converter: AudioConverter
+    /** Conversão à espera da resposta ao pedido de autorização de notificações. */
+    private var pendingJob: ConversionManager.Job? = null
+    /** Leitura de pasta, gravação de tags ou análise em curso nesta Activity. */
+    private var loading = false
+    /** Ocupado = trabalho local OU conversão em curso no serviço. */
+    private val busy get() = loading || ConversionManager.running
 
     private val prefs by lazy { getSharedPreferences("minitag", MODE_PRIVATE) }
 
@@ -54,6 +72,12 @@ class MainActivity : AppCompatActivity() {
         imageCallback = null
     }
 
+    private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        // Com ou sem autorização, a conversão avança; sem ela só não se vê a notificação.
+        pendingJob?.let { startJob(it) }
+        pendingJob = null
+    }
+
     private val selectAllListener = CompoundButton.OnCheckedChangeListener { _, checked ->
         tracks.forEach { it.selected = checked }
         adapter.notifyDataSetChanged()
@@ -64,6 +88,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         repo = TagRepository(applicationContext)
+        converter = AudioConverter(applicationContext, repo)
 
         // targetSdk 35 força edge-to-edge: sem isto os botões ficam debaixo da barra de estado.
         val root = findViewById<View>(R.id.root)
@@ -79,6 +104,12 @@ class MainActivity : AppCompatActivity() {
         openButton = findViewById(R.id.openFolder)
         selectAll = findViewById(R.id.selectAll)
         progress = findViewById(R.id.progress)
+        convertButton = findViewById(R.id.convertSelected)
+        statusRow = findViewById(R.id.statusRow)
+        statusLabel = findViewById(R.id.statusLabel)
+        convProgress = findViewById(R.id.convProgress)
+        convertButton.setOnClickListener { convertSelected() }
+        findViewById<Button>(R.id.cancelButton).setOnClickListener { ConversionManager.cancel() }
 
         adapter = TrackAdapter(tracks, onEdit = { t ->
             when {
@@ -106,6 +137,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // A Activity só ouve a conversão enquanto está visível; a conversão em si vive no serviço.
+    override fun onStart() {
+        super.onStart()
+        ConversionManager.addListener(this)
+        ConversionManager.progress?.let { onProgress(it) }
+        refreshBusy()
+        ConversionManager.pendingOutcome?.let {
+            ConversionManager.pendingOutcome = null
+            onFinished(it)
+        }
+    }
+
+    override fun onStop() {
+        ConversionManager.removeListener(this)
+        super.onStop()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         executor.shutdownNow()
@@ -114,15 +162,22 @@ class MainActivity : AppCompatActivity() {
     private fun updateSelectionUi() {
         val n = tracks.count { it.selected }
         editButton.text = if (n > 0) "Editar seleccionados ($n)" else "Editar seleccionados"
+        convertButton.text = if (n > 0) "Converter seleccionados para MP3 ($n)" else "Converter seleccionados para MP3"
         selectAll.setOnCheckedChangeListener(null)
         selectAll.isChecked = tracks.isNotEmpty() && n == tracks.size
         selectAll.setOnCheckedChangeListener(selectAllListener)
     }
 
     private fun setBusy(b: Boolean) {
-        busy = b
-        openButton.isEnabled = !b; editButton.isEnabled = !b; selectAll.isEnabled = !b
-        progress.visibility = if (b) View.VISIBLE else View.GONE
+        loading = b
+        refreshBusy()
+    }
+
+    private fun refreshBusy() {
+        val b = busy
+        openButton.isEnabled = !b; editButton.isEnabled = !b; selectAll.isEnabled = !b; convertButton.isEnabled = !b
+        progress.visibility = if (loading) View.VISIBLE else View.GONE
+        statusRow.visibility = if (ConversionManager.running) View.VISIBLE else View.GONE
     }
 
     // ---------- Ler pasta ----------
@@ -166,7 +221,7 @@ class MainActivity : AppCompatActivity() {
                 val id = c.getString(0); val name = c.getString(1) ?: continue; val mime = c.getString(2)
                 if (mime == DocumentsContract.Document.MIME_TYPE_DIR) walk(tree, id, "$prefix$name/", out)
                 else if (isSupportedAudio(name))
-                    out += Track(DocumentsContract.buildDocumentUriUsingTree(tree, id), name, "$prefix$name")
+                    out += Track(DocumentsContract.buildDocumentUriUsingTree(tree, id), name, "$prefix$name", tree, docId)
             }
         }
     }
@@ -257,7 +312,7 @@ class MainActivity : AppCompatActivity() {
             list.forEachIndexed { i, t ->
                 try {
                     val (after, w) = repo.write(t, changes)
-                    runOnUiThread { t.values = after.values; t.hasCover = after.hasCover; t.error = null }
+                    runOnUiThread { t.values = after.values; t.hasCover = after.hasCover; after.info?.let { t.info = it }; t.error = null }
                     warnings += w.map { "${t.ext.uppercase()} – $it" }
                     ok++
                 } catch (e: Throwable) {
@@ -278,6 +333,119 @@ class MainActivity : AppCompatActivity() {
                     .setPositiveButton("OK", null).show()
             }
         }
+    }
+
+    // ---------- Converter para MP3 ----------
+
+    private fun convertSelected() {
+        val sel = tracks.filter { it.selected && it.error == null }
+        if (sel.isEmpty()) { toast("Seleccione pelo menos um ficheiro (toque longo ou caixa)"); return }
+        setBusy(true); progress.isIndeterminate = true
+        executor.execute {
+            val probes = sel.map { converter.probe(it) }
+            runOnUiThread { setBusy(false); showConvertDialog(probes) }
+        }
+    }
+
+    private fun showConvertDialog(probes: List<AudioConverter.Probe>) {
+        val ok = probes.filter { it.unsupportedReason == null }
+        val bad = probes.filter { it.unsupportedReason != null }
+        val lossy = ok.filter { it.lossy }
+        val dp = resources.displayMetrics.density
+        fun text(s: String, warn: Boolean = false) = TextView(this).apply {
+            text = s
+            setPadding(0, (8 * dp).toInt(), 0, 0)
+            if (warn) setTextColor(com.google.android.material.color.MaterialColors.getColor(
+                this, com.google.android.material.R.attr.colorError))
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((24 * dp).toInt(), (8 * dp).toInt(), (24 * dp).toInt(), 0)
+        }
+        if (ok.isNotEmpty()) box.addView(text(
+            "${ok.size} ficheiro(s) serão convertidos e gravados numa subpasta MP3/ junto de cada original. Os originais não são alterados."))
+        if (lossy.isNotEmpty()) {
+            val codecs = lossy.map { it.codec }.distinct().joinToString(", ")
+            box.addView(text("⚠ ${lossy.size} ficheiro(s) já estão num formato com perdas ($codecs). " +
+                "Converter para MP3 volta a comprimir o áudio e perde qualidade — o resultado nunca soa melhor que o original.", warn = true))
+        }
+        if (bad.isNotEmpty()) box.addView(text("✗ ${bad.size} ficheiro(s) serão ignorados:\n" +
+            bad.joinToString("\n") { "• ${it.track.name}: ${it.unsupportedReason}" }))
+
+        if (ok.isEmpty()) {
+            MaterialAlertDialogBuilder(this).setTitle("Nada para converter").setView(cappedScroll(box, 0.5f))
+                .setPositiveButton("OK", null).show()
+            return
+        }
+        box.addView(text("Qualidade:").apply { setTypeface(typeface, Typeface.BOLD) })
+        val saved = runCatching { Mp3Quality.valueOf(prefs.getString("mp3quality", null) ?: "") }.getOrDefault(Mp3Quality.CBR_320)
+        val group = RadioGroup(this)
+        Mp3Quality.values().forEach { q ->
+            group.addView(RadioButton(this).apply { id = View.generateViewId(); text = q.label; tag = q; isChecked = q == saved })
+        }
+        box.addView(group)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Converter para MP3")
+            .setView(cappedScroll(box, 0.6f))
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Converter") { _, _ ->
+                val q = group.findViewById<RadioButton>(group.checkedRadioButtonId)?.tag as? Mp3Quality ?: saved
+                prefs.edit().putString("mp3quality", q.name).apply()
+                runConversion(ok.map { it.track }, q, skipped = bad.size)
+            }.show()
+    }
+
+    private fun runConversion(list: List<Track>, quality: Mp3Quality, skipped: Int) {
+        val job = ConversionManager.Job(list, quality, skipped)
+        // Android 13+: pedir autorização para a notificação de progresso (uma vez).
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
+            !prefs.getBoolean("askedNotifications", false)
+        ) {
+            prefs.edit().putBoolean("askedNotifications", true).apply()
+            pendingJob = job
+            askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
+        startJob(job)
+    }
+
+    private fun startJob(job: ConversionManager.Job) {
+        if (!ConversionManager.start(this, job)) { toast("Já há uma conversão em curso"); return }
+        onProgress(ConversionManager.progress ?: return)
+        refreshBusy()
+    }
+
+    override fun onProgress(p: ConversionManager.Progress) {
+        statusRow.visibility = View.VISIBLE
+        statusLabel.text = when {
+            p.cancelling -> "A cancelar…"
+            p.workers == 0 -> "A preparar conversão…"
+            else -> "A converter ${p.done}/${p.total} · ${p.workers} em simultâneo · pode sair da app"
+        }
+        convProgress.max = p.total * 1000
+        convProgress.setProgressCompat(p.permille, true)
+    }
+
+    override fun onFinished(o: ConversionManager.Outcome) {
+        getSystemService(NotificationManager::class.java).cancel(ConversionService.ID_DONE)
+        if (o.created.isNotEmpty()) {
+            // Os MP3 novos aparecem na lista, se ainda não lá estiverem.
+            val known = tracks.map { it.uri }.toSet()
+            tracks += o.created.filter { it.uri !in known }
+            tracks.sortBy { it.path.lowercase() }
+            adapter.notifyDataSetChanged()
+        }
+        refreshBusy()
+        updateSelectionUi()
+        if (o.lines.isEmpty()) toast("${o.title} · ${o.quality.label}")
+        else MaterialAlertDialogBuilder(this).setTitle(o.title)
+            .setView(cappedScroll(TextView(this).apply {
+                text = o.lines.joinToString("\n\n"); setTextIsSelectable(true)
+                val p = (20 * resources.displayMetrics.density).toInt(); setPadding(p, p / 2, p, 0)
+            }, 0.5f))
+            .setPositiveButton("OK", null).show()
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
