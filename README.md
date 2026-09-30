@@ -11,7 +11,7 @@
 
 <p align="center">
   <img alt="Android 8.0+" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white">
-  <img alt="Versão" src="https://img.shields.io/badge/versão-1.2-blue">
+  <img alt="Versão" src="https://img.shields.io/badge/versão-1.3-blue">
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.0-7F52FF?logo=kotlin&logoColor=white">
   <img alt="Licença MIT" src="https://img.shields.io/badge/licença-MIT-green">
   <img alt="Desenvolvido com IA" src="https://img.shields.io/badge/desenvolvido%20com-IA-orange">
@@ -32,6 +32,7 @@
 - **Faixa e disco** no formato `3` ou `3/12` (número e total).
 - **Ano** aceita ano simples (`2008`) ou data completa (`2008-06-23`).
 - **Conversão para MP3** — converte os ficheiros seleccionados para MP3 (320, 256, 192, 128 kbps ou VBR), com tags e capa copiadas. Os MP3 são gravados numa subpasta `MP3/` junto de cada original, que nunca é alterado. Avisa quando o original já é um formato com perdas. A conversão continua em segundo plano, com notificação de progresso — pode usar outras apps entretanto.
+- Lista com formato, bitrate, taxa de amostragem e duração de cada ficheiro.
 - Pesquisa recursiva de subpastas e reabertura automática da última pasta.
 - Detalhes completos de erro por ficheiro, com opção de copiar e repetir a leitura.
 - Actualiza a biblioteca de música do Android após gravar, para os leitores verem logo as alterações.
@@ -84,7 +85,7 @@ Ficheiros com o mesmo nome não são sobrescritos: é criado `nome (1).mp3`. Áu
 
 ## Instalação
 
-1. Descarregue o `MiniTag-v1.2-release.apk` na página de [Releases](../../releases).
+1. Descarregue o `MiniTag-v1.3-release.apk` na página de [Releases](../../releases).
 2. Abra o ficheiro no telemóvel e autorize a instalação de fontes desconhecidas, se for pedido.
 
 Requer **Android 8.0 (API 26)** ou superior.
@@ -126,7 +127,7 @@ cd Minitag
    ```bash
    ./gradlew assembleRelease
    ```
-   O APK fica em `app/build/outputs/apk/release/MiniTag-v1.2-release.apk`.
+   O APK fica em `app/build/outputs/apk/release/MiniTag-v1.3-release.apk`.
 
 `keystore.properties` e `*.jks` estão no `.gitignore` e nunca devem ser publicados.
 

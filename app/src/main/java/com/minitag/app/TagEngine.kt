@@ -52,7 +52,15 @@ data class TagChanges(
     val isEmpty get() = fields.isEmpty() && cover === CoverChange.Keep
 }
 
-data class TagData(val values: Map<TagField, String>, val hasCover: Boolean)
+/** Informação técnica do áudio. Qualquer campo pode faltar (ex.: M4A lido pelo recurso sem cabeçalho). */
+data class AudioInfo(
+    val bitrateKbps: Int?,
+    val vbr: Boolean,
+    val sampleRateHz: Int?,
+    val durationSec: Int?,
+)
+
+data class TagData(val values: Map<TagField, String>, val hasCover: Boolean, val info: AudioInfo? = null)
 
 /**
  * Lógica de tags pura JVM (sem Android), trabalha sobre um java.io.File.
@@ -120,7 +128,21 @@ object TagEngine {
             TagField.COMMENT to get(FieldKey.COMMENT),
         )
         val hasCover = tag?.let { runCatching { artworkTag(it)?.artworkList?.isNotEmpty() }.getOrNull() } ?: false
-        return TagData(values, hasCover)
+        return TagData(values, hasCover, audioInfo(af))
+    }
+
+    /**
+     * Cada leitura vai protegida: no jaudiotagger 3.0.1 os getters do cabeçalho convertem
+     * Integer → int e rebentam com NullPointerException quando o valor não foi lido.
+     */
+    private fun audioInfo(af: AudioFile): AudioInfo? {
+        val h = af.audioHeader ?: return null
+        val kbps = runCatching { h.bitRateAsNumber.toInt() }.getOrNull()?.takeIf { it > 0 }
+        val vbr = runCatching { h.isVariableBitRate }.getOrDefault(false)
+        val rate = runCatching { h.sampleRateAsNumber }.getOrNull()?.takeIf { it > 0 }
+        val secs = runCatching { h.trackLength }.getOrNull()?.takeIf { it > 0 }
+        if (kbps == null && rate == null && secs == null) return null
+        return AudioInfo(kbps, vbr, rate, secs)
     }
 
     @Synchronized

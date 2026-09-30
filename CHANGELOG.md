@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3] — 2026-09-30
+
+### Alterado
+- Linhas da lista reorganizadas: título, artista, álbum · faixa · ano, e depois **formato · bitrate · kHz · duração · capa**. O caminho do ficheiro, que repetia o nome da música, deixou de aparecer.
+- Botões "Abrir pasta" e "Editar seleccionados" com a mesma altura e alinhados.
+- MP3 com bitrate variável mostram "VBR" a seguir ao bitrate.
+- Quando o jaudiotagger não consegue ler a informação técnica (ex.: M4A com AC-3), é usada a do Android.
+
 ## [1.2] — 2026-09-29
 
 ### Adicionado
