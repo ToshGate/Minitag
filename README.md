@@ -31,7 +31,7 @@
 - **Capa do álbum** — ver, substituir ou remover. Imagens WebP/HEIC são convertidas para JPEG.
 - **Faixa e disco** no formato `3` ou `3/12` (número e total).
 - **Ano** aceita ano simples (`2008`) ou data completa (`2008-06-23`).
-- **Conversão para MP3** — converte os ficheiros seleccionados para MP3 (320, 256, 192, 128 kbps ou VBR), com tags e capa copiadas. Todos os MP3 ficam numa **pasta MP3 central**, escolhida uma vez, que recria o caminho de pastas de cada original (ex.: `Spotiflac/Sam Smith/Álbum` → `MP3/Spotiflac/Sam Smith/Álbum`). O original nunca é alterado. Avisa quando o original já é um formato com perdas. A conversão continua em segundo plano, com notificação de progresso — pode usar outras apps entretanto.
+- **Conversão para MP3** — converte os ficheiros seleccionados para MP3 (320, 256, 192, 128 kbps ou VBR), com tags e capa copiadas. Todos os MP3 ficam numa **pasta MP3 central**, escolhida uma vez, que recria o caminho de pastas de cada original (ex.: `Origem/Sam/Álbum` → `MP3/Origem/Sam/Álbum`). O original nunca é alterado. Avisa quando o original já é um formato com perdas. A conversão continua em segundo plano, com notificação de progresso — pode usar outras apps entretanto.
 - Lista com formato, bitrate, taxa de amostragem e duração de cada ficheiro.
 - Pesquisa recursiva de subpastas e reabertura automática da última pasta.
 - Detalhes completos de erro por ficheiro, com opção de copiar e repetir a leitura.
@@ -154,7 +154,7 @@ O MiniTag foi desenvolvido com recurso a ferramentas de inteligência artificial
 - **Código e documentação** — escritos com a assistência do Claude (Anthropic).
 - **Ícone** — gerado com o Gemini (Google) e adaptado para ícone Android.
 
-A app foi testada num dispositivo Android real, mas pode conter erros que passaram despercebidos. **Faça cópia de segurança dos seus ficheiros de música antes de editar muitos de uma vez.** Relatos de problemas são bem-vindos em [Issues](../../issues).
+A app foi testada num dispositivo Android real, mas pode conter erros que passaram despercebidos. **Faça cópia de segurança dos seus ficheiros de música antes de editar muitos de uma vez.**
 
 ## Bibliotecas
 
