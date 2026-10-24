@@ -124,7 +124,7 @@ class ConversionService : Service() {
             pool.submit(Runnable {
                 if (flag.get()) { cancelled.set(true); return@Runnable }
                 try {
-                    val r = converter.convert(t, job.quality, session,
+                    val r = converter.convert(t, job.quality, job.dest, session,
                         progress = { f -> perFile.set(i, (f * 1000).toInt()); report() },
                         cancelled = { flag.get() })
                     created += r.track

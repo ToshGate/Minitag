@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4] — 2026-10-24
+
+### Alterado
+- **Pasta MP3 central**: todas as conversões vão para uma única pasta, escolhida na primeira conversão e memorizada (pode ser mudada no diálogo, em *Mudar pasta*).
+- Dentro dela é recriado o caminho completo de pastas do original — `Spotiflac/Sam Smith/Álbum/x.flac` → `MP3/Spotiflac/Sam Smith/Álbum/x.mp3` — independentemente da pasta que estava aberta.
+- Ficheiros de cartão SD ficam numa pasta com o identificador do cartão; originais que já estejam dentro da pasta MP3 mantêm o caminho relativo a ela.
+- Os MP3 novos só aparecem na lista se a pasta MP3 estiver dentro da pasta aberta.
+- Diálogo de conversão com os botões **Converter · Mudar pasta · Cancelar** lado a lado (antes empilhavam-se e obrigavam a fazer scroll). Janela à medida do conteúdo (até 80% do ecrã), sem espaço em branco, e com scroll só no conteúdo quando não cabe. Se o texto de um botão não couber, passa para a linha de baixo e os três botões crescem por igual.
+
+### Removido
+- Subpasta `MP3/` criada junto de cada original.
+
 ## [1.3] — 2026-09-30
 
 ### Alterado

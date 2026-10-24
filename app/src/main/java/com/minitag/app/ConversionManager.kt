@@ -2,6 +2,7 @@ package com.minitag.app
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
@@ -14,7 +15,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * a conversão, a Activity nova volta a ver o progresso.
  */
 object ConversionManager {
-    class Job(val tracks: List<Track>, val quality: Mp3Quality, val skipped: Int)
+    /** `dest` = pasta MP3 central (árvore SAF escolhida pelo utilizador). */
+    class Job(val tracks: List<Track>, val quality: Mp3Quality, val skipped: Int, val dest: Uri)
 
     data class Progress(
         val done: Int, val total: Int,

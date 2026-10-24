@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import android.util.Log
 import android.view.View
+import android.view.Gravity
 import android.Manifest
 import android.app.NotificationManager
 import android.content.pm.PackageManager
@@ -24,10 +25,18 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import android.view.ViewGroup
+import android.graphics.drawable.InsetDrawable
+import com.google.android.material.color.MaterialColors
+import com.google.android.material.shape.ShapeAppearanceModel
+import com.google.android.material.shape.MaterialShapeDrawable
+import androidx.core.widget.TextViewCompat
+import androidx.appcompat.app.AppCompatDialog
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import androidx.core.content.ContextCompat
@@ -65,6 +74,30 @@ class MainActivity : AppCompatActivity(), ConversionManager.Listener {
         prefs.edit().putString("tree", uri.toString()).apply()
         loadFolder(uri)
     }
+
+    /** Pasta MP3 central: escolhida uma vez e memorizada. */
+    private var destCallback: ((Uri) -> Unit)? = null
+    private val pickDest = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            contentResolver.takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            // Libertar a permissão da pasta antiga (o Android limita o nº de permissões guardadas).
+            prefs.getString("mp3dest", null)?.let(Uri::parse)?.takeIf { it != uri && it.toString() != prefs.getString("tree", null) }
+                ?.let { old -> runCatching { contentResolver.releasePersistableUriPermission(old,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) } }
+            prefs.edit().putString("mp3dest", uri.toString()).apply()
+            destCallback?.invoke(uri)
+        }
+        destCallback = null
+    }
+
+    private fun mp3Dest(): Uri? = prefs.getString("mp3dest", null)?.let(Uri::parse)?.takeIf { u ->
+        contentResolver.persistedUriPermissions.any { it.uri == u && it.isWritePermission }
+    }
+
+    private fun destLabel(u: Uri?) =
+        u?.let { DocumentsContract.getTreeDocumentId(it).replace("primary:", "").replace(':', '/') } ?: "nenhuma escolhida"
 
     private var imageCallback: ((Uri) -> Unit)? = null
     private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -363,7 +396,8 @@ class MainActivity : AppCompatActivity(), ConversionManager.Listener {
             setPadding((24 * dp).toInt(), (8 * dp).toInt(), (24 * dp).toInt(), 0)
         }
         if (ok.isNotEmpty()) box.addView(text(
-            "${ok.size} ficheiro(s) serão convertidos e gravados numa subpasta MP3/ junto de cada original. Os originais não são alterados."))
+            "${ok.size} ficheiro(s) serão convertidos para a pasta MP3, recriando lá dentro o caminho de pastas de cada original " +
+            "(ex.: Música/Artista/Álbum → MP3/Música/Artista/Álbum). Os originais não são alterados."))
         if (lossy.isNotEmpty()) {
             val codecs = lossy.map { it.codec }.distinct().joinToString(", ")
             box.addView(text("⚠ ${lossy.size} ficheiro(s) já estão num formato com perdas ($codecs). " +
@@ -377,6 +411,10 @@ class MainActivity : AppCompatActivity(), ConversionManager.Listener {
                 .setPositiveButton("OK", null).show()
             return
         }
+        var dest = mp3Dest()
+        box.addView(text("Pasta MP3:").apply { setTypeface(typeface, Typeface.BOLD) })
+        val destText = text("📁 " + destLabel(dest)).apply { setPadding(0, (2 * dp).toInt(), 0, 0) }
+        box.addView(destText)
         box.addView(text("Qualidade:").apply { setTypeface(typeface, Typeface.BOLD) })
         val saved = runCatching { Mp3Quality.valueOf(prefs.getString("mp3quality", null) ?: "") }.getOrDefault(Mp3Quality.CBR_320)
         val group = RadioGroup(this)
@@ -385,19 +423,98 @@ class MainActivity : AppCompatActivity(), ConversionManager.Listener {
         }
         box.addView(group)
 
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Converter para MP3")
-            .setView(cappedScroll(box, 0.6f))
-            .setNegativeButton("Cancelar", null)
-            .setPositiveButton("Converter") { _, _ ->
-                val q = group.findViewById<RadioButton>(group.checkedRadioButtonId)?.tag as? Mp3Quality ?: saved
-                prefs.edit().putString("mp3quality", q.name).apply()
-                runConversion(ok.map { it.track }, q, skipped = bad.size)
-            }.show()
+        // Botões próprios, lado a lado: os do AlertDialog empilham-se quando não cabem numa linha
+        // e passam a ocupar tanto espaço que o conteúdo fica com scroll.
+        fun button(label: String, primary: Boolean = false) =
+            // MaterialButton (não Button): criado em código, um Button simples não recebe o estilo Material 3.
+            MaterialButton(this, null, if (primary) com.google.android.material.R.attr.materialButtonStyle
+                                       else com.google.android.material.R.attr.borderlessButtonStyle).apply {
+                text = label
+                // Como o "Editar seleccionados": se o texto não couber, passa para a linha de baixo
+                // e o botão fica mais alto (no máximo 2 linhas).
+                isSingleLine = false
+                maxLines = 2
+                gravity = Gravity.CENTER
+                minWidth = 0; minimumWidth = 0
+                // Altura mínima do Material 3 (40dp, área de toque 48dp); cresce se o texto ocupar 2 linhas.
+                setPadding((4 * dp).toInt(), paddingTop, (4 * dp).toInt(), paddingBottom)
+                // MATCH_PARENT na altura: os três botões ficam sempre com a altura do mais alto.
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+                    .apply { marginStart = (4 * dp).toInt(); marginEnd = (4 * dp).toInt() }
+            }
+        val convertBtn = button("Converter", primary = true)
+        val changeBtn = button("Mudar pasta")
+        val cancelBtn = button("Cancelar")
+        val buttons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            isBaselineAligned = false   // alinhar pelo topo, não pela linha do texto (como na barra principal)
+            setPadding((20 * dp).toInt(), (8 * dp).toInt(), (20 * dp).toInt(), (12 * dp).toInt())
+            addView(convertBtn); addView(changeBtn); addView(cancelBtn)
+        }
+        // Título · conteúdo (ocupa o espaço livre, com scroll se não couber) · botões no fundo.
+        val title = TextView(this).apply {
+            text = "Converter para MP3"
+            TextViewCompat.setTextAppearance(this, com.google.android.material.R.style.TextAppearance_Material3_HeadlineSmall)
+            setPadding((24 * dp).toInt(), (24 * dp).toInt(), (24 * dp).toInt(), (8 * dp).toInt())
+        }
+        val scroll = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+            addView(box)
+        }
+        // Altura à medida do conteúdo, até 80% do ecrã: sem espaço em branco quando o conteúdo é curto;
+        // se for comprido, a janela pára nos 80% e o conteúdo (não os botões) passa a ter scroll.
+        val maxH = (resources.displayMetrics.heightPixels * 0.80f).toInt()
+        val content = object : LinearLayout(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val h = View.MeasureSpec.getSize(heightMeasureSpec)
+                val cap = if (h > 0) minOf(h, maxH) else maxH
+                super.onMeasure(widthMeasureSpec, View.MeasureSpec.makeMeasureSpec(cap, View.MeasureSpec.AT_MOST))
+            }
+        }.apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            addView(title)
+            addView(scroll)
+            addView(buttons)
+        }
+
+        // Diálogo próprio (não AlertDialog): o AlertDialog do Material 3 reserva 80dp transparentes em cima
+        // e em baixo e encolhe o conteúdo à medida, por isso a janela visível ficava bem abaixo dos 80%.
+        // Aqui o cartão visível tem a altura do conteúdo, no máximo 80% do ecrã.
+        val dialog = AppCompatDialog(this)
+        dialog.setContentView(content)
+        dialog.setCanceledOnTouchOutside(true)
+        dialog.window?.let { w ->
+            val card = MaterialShapeDrawable(ShapeAppearanceModel.builder()
+                .setAllCornerSizes(28 * dp).build()).apply {
+                fillColor = android.content.res.ColorStateList.valueOf(MaterialColors.getColor(
+                    content, com.google.android.material.R.attr.colorSurfaceContainerHigh))
+            }
+            // 24dp de margem lateral, como os diálogos do Material 3; nenhuma em cima/baixo.
+            w.setBackgroundDrawable(InsetDrawable(card, (24 * dp).toInt(), 0, (24 * dp).toInt(), 0))
+            w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        fun choose(then: ((Uri) -> Unit)? = null) {
+            destCallback = { u -> dest = u; destText.text = "📁 " + destLabel(u); then?.invoke(u) }
+            toast("Escolha (ou crie) a pasta onde ficam todos os MP3, ex.: MP3")
+            pickDest.launch(dest)
+        }
+        changeBtn.setOnClickListener { choose() }
+        cancelBtn.setOnClickListener { dialog.dismiss() }
+        convertBtn.setOnClickListener {
+            val q = group.findViewById<RadioButton>(group.checkedRadioButtonId)?.tag as? Mp3Quality ?: saved
+            prefs.edit().putString("mp3quality", q.name).apply()
+            val start = { d: Uri -> dialog.dismiss(); runConversion(ok.map { it.track }, q, skipped = bad.size, dest = d) }
+            val d = dest
+            if (d != null) start(d) else choose(start)   // 1.ª vez: pedir a pasta e converter logo a seguir
+        }
+        dialog.show()
+        // Reaplicar depois de mostrar: alguns fabricantes repõem o tamanho da janela no show().
+        dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
     }
 
-    private fun runConversion(list: List<Track>, quality: Mp3Quality, skipped: Int) {
-        val job = ConversionManager.Job(list, quality, skipped)
+    private fun runConversion(list: List<Track>, quality: Mp3Quality, skipped: Int, dest: Uri) {
+        val job = ConversionManager.Job(list, quality, skipped, dest)
         // Android 13+: pedir autorização para a notificação de progresso (uma vez).
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
@@ -430,10 +547,12 @@ class MainActivity : AppCompatActivity(), ConversionManager.Listener {
 
     override fun onFinished(o: ConversionManager.Outcome) {
         getSystemService(NotificationManager::class.java).cancel(ConversionService.ID_DONE)
-        if (o.created.isNotEmpty()) {
-            // Os MP3 novos aparecem na lista, se ainda não lá estiverem.
-            val known = tracks.map { it.uri }.toSet()
-            tracks += o.created.filter { it.uri !in known }
+        // Os MP3 novos só aparecem na lista se a pasta MP3 estiver dentro da pasta aberta.
+        val opened = prefs.getString("tree", null)?.let(Uri::parse)
+        val visible = if (opened == null) emptyList() else o.created.mapNotNull { t -> relocate(t, opened) }
+        if (visible.isNotEmpty()) {
+            val known = tracks.map { DocumentsContract.getDocumentId(it.uri) }.toSet()
+            tracks += visible.filter { DocumentsContract.getDocumentId(it.uri) !in known }
             tracks.sortBy { it.path.lowercase() }
             adapter.notifyDataSetChanged()
         }
@@ -446,6 +565,17 @@ class MainActivity : AppCompatActivity(), ConversionManager.Listener {
                 val p = (20 * resources.displayMetrics.density).toInt(); setPadding(p, p / 2, p, 0)
             }, 0.5f))
             .setPositiveButton("OK", null).show()
+    }
+
+    /** Track convertido, reescrito para a árvore da pasta aberta (com caminho relativo a ela), ou null se estiver fora. */
+    private fun relocate(t: Track, opened: Uri): Track? {
+        if (t.uri.authority != opened.authority) return null
+        val rootId = DocumentsContract.getTreeDocumentId(opened)
+        val id = DocumentsContract.getDocumentId(t.uri)
+        val prefix = if (rootId.endsWith(":")) rootId else "$rootId/"
+        if (!id.startsWith(prefix)) return null
+        return Track(DocumentsContract.buildDocumentUriUsingTree(opened, id), t.name, id.removePrefix(prefix),
+            opened, id.substringBeforeLast('/'), t.values, t.hasCover, t.info, t.error)
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()

@@ -20,6 +20,8 @@ import java.util.concurrent.CancellationException
  *   depois copia tags e capa com o TagEngine e grava em <pasta do original>/MP3/.
  * O original nunca é alterado.
  */
+private const val EXTERNAL_STORAGE = "com.android.externalstorage.documents"
+
 class AudioConverter(private val context: Context, private val repo: TagRepository) {
     private val resolver = context.contentResolver
 
@@ -55,8 +57,8 @@ class AudioConverter(private val context: Context, private val repo: TagReposito
 
     /** Cache de pastas MP3/ e nomes já usados, válida durante uma conversão em lote. */
     class Session {
-        val dirs = mutableMapOf<String, String>()            // parentId -> id da pasta MP3
-        val names = mutableMapOf<String, MutableSet<String>>() // id da pasta MP3 -> nomes (minúsculas)
+        val dirs = mutableMapOf<String, String>()            // caminho relativo no destino -> id da pasta
+        val names = mutableMapOf<String, MutableSet<String>>() // id da pasta -> nomes (minúsculas)
     }
 
     class Result(val track: Track, val warnings: List<String>)
@@ -65,10 +67,9 @@ class AudioConverter(private val context: Context, private val repo: TagReposito
      * Converte um ficheiro. `progress` recebe 0..1. `cancelled` é verificado com frequência.
      * Devolve o novo Track (já com tags lidas).
      */
-    fun convert(src: Track, quality: Mp3Quality, session: Session,
+    fun convert(src: Track, quality: Mp3Quality, dest: Uri, session: Session,
                 progress: (Float) -> Unit, cancelled: () -> Boolean): Result {
-        val tree = src.tree ?: error("ficheiro sem pasta de origem")
-        val parentId = src.parentId ?: error("ficheiro sem pasta de origem")
+        val segments = mirrorPath(src, dest)
         val temp = File.createTempFile("minitag_conv_", ".mp3", context.cacheDir)
         try {
             encode(src.uri, temp, quality, progress, cancelled)
@@ -87,17 +88,17 @@ class AudioConverter(private val context: Context, private val repo: TagReposito
                 warnings += "tags não copiadas (${e.javaClass.simpleName}: ${e.message})"
             }
 
-            // Criar <pasta>/MP3/<nome>.mp3 sem sobrescrever nada.
+            // Criar <destino>/<caminho espelhado>/<nome>.mp3 sem sobrescrever nada.
             // Sincronizado: com várias conversões em paralelo, duas não podem escolher o mesmo nome
-            // nem criar a pasta MP3/ duas vezes.
+            // nem criar a mesma pasta duas vezes.
             val dirId: String
             val name: String
             val outUri: Uri
             synchronized(session) {
-                dirId = session.dirs.getOrPut(parentId) { findOrCreateDir(tree, parentId, "MP3") }
-                val taken = session.names.getOrPut(dirId) { childNames(tree, dirId) }
+                dirId = ensureDirs(dest, segments, session)
+                val taken = session.names.getOrPut(dirId) { childNames(dest, dirId) }
                 name = uniqueName(src.name.substringBeforeLast('.'), taken)
-                val dirUri = DocumentsContract.buildDocumentUriUsingTree(tree, dirId)
+                val dirUri = DocumentsContract.buildDocumentUriUsingTree(dest, dirId)
                 outUri = DocumentsContract.createDocument(resolver, dirUri, "audio/mpeg", name)
                     ?: error("não foi possível criar $name")
                 taken += name.lowercase()
@@ -114,8 +115,7 @@ class AudioConverter(private val context: Context, private val repo: TagReposito
             if (realName != name) synchronized(session) { session.names[dirId]?.add(realName.lowercase()) }
             repo.scan(outUri)
 
-            val dirPath = src.path.substringBeforeLast('/', "").let { if (it.isEmpty()) "" else "$it/" }
-            val newTrack = Track(outUri, realName, "${dirPath}MP3/$realName", tree, dirId)
+            val newTrack = Track(outUri, realName, (segments + realName).joinToString("/"), dest, dirId)
             runCatching { repo.read(newTrack) }.onFailure { newTrack.error = it.message }
             return Result(newTrack, warnings)
         } finally {
@@ -254,6 +254,44 @@ class AudioConverter(private val context: Context, private val repo: TagReposito
     }
 
     // ---------- Pastas e nomes (SAF) ----------
+
+    /**
+     * Caminho (pastas) a recriar dentro da pasta MP3, espelhando o caminho completo do original:
+     *   primary:Spotiflac/Sam Smith/Álbum/x.flac  →  [Spotiflac, Sam Smith, Álbum]
+     * Cartão SD: o identificador do volume vem primeiro  →  [1234-ABCD, Música, …]
+     * Se o original já estiver dentro da pasta MP3, usa o caminho relativo a ela.
+     * Fornecedores que não usam caminhos (ex.: "Transferências", clouds): nome da pasta aberta + caminho relativo.
+     */
+    fun mirrorPath(src: Track, dest: Uri): List<String> {
+        val srcId = DocumentsContract.getDocumentId(src.uri)
+        val destId = DocumentsContract.getTreeDocumentId(dest)
+        if (src.uri.authority == EXTERNAL_STORAGE && srcId.contains(':')) {
+            val dir = srcId.substringBeforeLast('/', srcId.substringBefore(':') + ":")
+            if (dest.authority == EXTERNAL_STORAGE && (dir == destId || dir.startsWith("$destId/")))
+                return split(dir.removePrefix(destId))
+            val volume = srcId.substringBefore(':')
+            val rel = split(dir.substringAfter(':'))
+            return if (volume.equals("primary", true)) rel else listOf(volume) + rel
+        }
+        val treeName = src.tree?.let { t ->
+            queryName(DocumentsContract.buildDocumentUriUsingTree(t, DocumentsContract.getTreeDocumentId(t)))
+        } ?: "Outros"
+        return listOf(treeName) + split(src.path.substringBeforeLast('/', ""))
+    }
+
+    private fun split(path: String) = path.split('/').map { it.trim() }.filter { it.isNotEmpty() }
+
+    /** Cria (se preciso) cada pasta do caminho dentro do destino e devolve o id da última. */
+    private fun ensureDirs(dest: Uri, segments: List<String>, session: Session): String {
+        var id = DocumentsContract.getTreeDocumentId(dest)
+        val path = StringBuilder()
+        for (seg in segments) {
+            path.append('/').append(seg.lowercase())
+            val parent = id
+            id = session.dirs.getOrPut(path.toString()) { findOrCreateDir(dest, parent, seg) }
+        }
+        return id
+    }
 
     private fun findOrCreateDir(tree: Uri, parentId: String, name: String): String {
         val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parentId)
